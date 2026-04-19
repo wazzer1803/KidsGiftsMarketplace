@@ -1,0 +1,146 @@
+﻿@import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #fffaf3;
+  --card: #ffffffde;
+  --shadow-soft: 0 18px 44px rgba(135, 106, 82, 0.16);
+  --shadow-strong: 0 24px 60px rgba(245, 106, 74, 0.24);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  overflow-x: hidden;
+}
+
+body {
+  min-height: 100dvh;
+  font-family: "Be Vietnam Pro", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background:
+    radial-gradient(circle at 12% 8%, rgba(245, 106, 74, 0.2), transparent 34%),
+    radial-gradient(circle at 84% 18%, rgba(23, 182, 175, 0.2), transparent 34%),
+    radial-gradient(circle at 52% 92%, rgba(255, 226, 141, 0.36), transparent 28%),
+    var(--bg);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: "Plus Jakarta Sans", "Be Vietnam Pro", "Segoe UI", sans-serif;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.material-symbols-outlined {
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+  line-height: 1;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.glass-panel {
+  background: rgba(255, 251, 245, 0.72);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid rgba(230, 211, 190, 0.78);
+}
+
+.soft-card {
+  background: var(--card);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow-soft);
+  border: 1px solid rgba(230, 211, 190, 0.72);
+}
+
+.flowing-gradient {
+  background: linear-gradient(130deg, #f56a4a 0%, #f3a22f 42%, #17b6af 100%);
+  background-size: 200% 200%;
+  animation: gradientFlow 16s ease infinite;
+}
+
+@keyframes gradientFlow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes bubbleFloat {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-8px) scale(1.02);
+  }
+}
+
+@keyframes revealUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.reveal-up {
+  animation: revealUp 0.6s ease both;
+}
+
+.floating-bubble {
+  animation: bubbleFloat 6s ease-in-out infinite;
+}
+
+.btn-primary {
+  @apply inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-bold text-on-primary shadow-lg shadow-primary/30 transition-all hover:bg-primary-dim active:scale-95;
+}
+
+.btn-secondary {
+  @apply inline-flex items-center justify-center rounded-xl border border-outline-variant/70 bg-surface-container-lowest/90 px-4 py-2 text-sm font-semibold text-on-surface transition-all hover:bg-surface-container;
+}
+
+.input-plain {
+  @apply w-full rounded-xl border border-outline-variant/70 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30;
+}
+
+.label-text {
+  @apply mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-on-surface-variant;
+}
+
+[data-show-price="false"] .js-price {
+  display: none !important;
+}
+
+[data-show-quantity="false"] .js-quantity {
+  display: none !important;
+}
