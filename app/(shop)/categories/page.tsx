@@ -45,13 +45,17 @@ export default async function CategoriesPage() {
               className="group relative flex h-full min-h-[280px] overflow-hidden rounded-3xl soft-card transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl sm:min-h-[320px]"
             >
               <div className="absolute inset-0">
-                <Image
-                  src={category.heroImage}
-                  alt={category.name}
-                  fill
-                  className="object-cover transition-transform duration-700 group-hover:scale-105"
-                  sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
-                />
+                {category.heroImage ? (
+                  <Image
+                    src={category.heroImage}
+                    alt={category.name}
+                    fill
+                    className="object-cover transition-transform duration-700 group-hover:scale-105"
+                    sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                  />
+                ) : (
+                  <div className="h-full w-full" style={{ backgroundColor: category.accentColor || "#f56a4a" }} />
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent" />
               </div>
 
