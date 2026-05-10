@@ -15,5 +15,11 @@ function shouldBypassOptimizer(src: ImageProps["src"]) {
 }
 
 export default function AppImage(props: ImageProps) {
-  return <NextImage {...props} unoptimized={props.unoptimized ?? shouldBypassOptimizer(props.src)} />;
+  const src = typeof props.src === "string" ? props.src.trim() : props.src;
+
+  if (typeof src === "string" && !src) {
+    return null;
+  }
+
+  return <NextImage {...props} src={src} unoptimized={props.unoptimized ?? shouldBypassOptimizer(src)} />;
 }
