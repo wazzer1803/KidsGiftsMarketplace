@@ -9,6 +9,7 @@ type Category = {
   description?: string;
   heroImage?: string;
   accentColor?: string;
+  position?: number;
 };
 
 type Product = {
@@ -175,6 +176,28 @@ function fromProduct(product: Product): ProductDraft {
   };
 }
 
+function categoryPayload(draft: CategoryDraft) {
+  return {
+    name: draft.name.trim(),
+    slug: draft.slug.trim(),
+    description: draft.description.trim(),
+    heroImage: draft.heroImage.trim(),
+    accentColor: draft.accentColor.trim() || "#f56a4a",
+    ...(draft.position.trim() ? { position: Number(draft.position) } : {})
+  };
+}
+
+function fromCategory(category: Category): CategoryDraft {
+  return {
+    name: category.name,
+    slug: category.slug || "",
+    description: category.description || "",
+    heroImage: category.heroImage || "",
+    accentColor: category.accentColor || "#f56a4a",
+    position: category.position === undefined || category.position === null ? "" : String(category.position)
+  };
+}
+
 function validateProduct(draft: ProductDraft) {
   if (!draft.categoryId || !draft.title.trim() || !draft.shortDescription.trim() || !draft.description.trim()) {
     return false;
@@ -188,6 +211,21 @@ function validateProduct(draft: ProductDraft) {
   const stock = Number(draft.stockCount);
   if (!Number.isFinite(stock) || stock < 0) {
     return false;
+  }
+
+  return true;
+}
+
+function validateCategory(draft: CategoryDraft) {
+  if (!draft.name.trim()) {
+    return false;
+  }
+
+  if (draft.position.trim()) {
+    const position = Number(draft.position);
+    if (!Number.isFinite(position) || position < 1) {
+      return false;
+    }
   }
 
   return true;
@@ -208,15 +246,22 @@ export default function AdminConsole() {
   const [createDraft, setCreateDraft] = useState<ProductDraft>(emptyProduct);
   const [editDraft, setEditDraft] = useState<ProductDraft>(emptyProduct);
   const [categoryDraft, setCategoryDraft] = useState<CategoryDraft>(emptyCategory);
+  const [categoryEditDraft, setCategoryEditDraft] = useState<CategoryDraft>(emptyCategory);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [categoryDeleteTarget, setCategoryDeleteTarget] = useState<Category | null>(null);
+  const [categoryDeleteError, setCategoryDeleteError] = useState("");
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [creatingCategory, setCreatingCategory] = useState(false);
+  const [savingCategory, setSavingCategory] = useState(false);
+  const [deletingCategory, setDeletingCategory] = useState(false);
   const [savingDisplay, setSavingDisplay] = useState(false);
   const [newWhatsappNumber, setNewWhatsappNumber] = useState("");
   const [uploadingCreateImage, setUploadingCreateImage] = useState(false);
   const [uploadingEditImage, setUploadingEditImage] = useState(false);
   const [uploadingCategoryImage, setUploadingCategoryImage] = useState(false);
+  const [uploadingCategoryEditImage, setUploadingCategoryEditImage] = useState(false);
   const [migratingImages, setMigratingImages] = useState(false);
 
   const canRender = useMemo(() => authorized === true, [authorized]);
@@ -233,7 +278,7 @@ export default function AdminConsole() {
     setAuthorized(true);
 
     const [categoriesRes, productsRes, ticketsRes, settingsRes] = await Promise.all([
-      fetch("/api/categories", { cache: "no-store" }),
+      fetch("/api/admin/categories", { cache: "no-store" }),
       fetch("/api/admin/products", { cache: "no-store" }),
       fetch("/api/admin/tickets", { cache: "no-store" }),
       fetch("/api/admin/settings", { cache: "no-store" })
@@ -275,6 +320,16 @@ export default function AdminConsole() {
 
     return items.sort((a, b) => a.title.localeCompare(b.title));
   }, [products, mode, selectedCategoryId, query]);
+
+  const categoryDeleteAssignedProducts = useMemo(() => {
+    if (!categoryDeleteTarget) {
+      return [];
+    }
+
+    return products
+      .filter((product) => product.category?.id === categoryDeleteTarget.id)
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }, [categoryDeleteTarget, products]);
 
   async function uploadImageAsset(file: File, kind: "product" | "category") {
     const payload = new FormData();
@@ -354,6 +409,27 @@ export default function AdminConsole() {
       setStatus(error instanceof Error ? error.message : "Failed to upload category image.");
     } finally {
       setUploadingCategoryImage(false);
+    }
+  }
+
+  async function onCategoryEditImageUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) {
+      return;
+    }
+
+    setUploadingCategoryEditImage(true);
+    try {
+      const uploadedUrl = await uploadImageAsset(file, "category");
+      setCategoryEditDraft((prev) => ({ ...prev, heroImage: uploadedUrl }));
+      setStatusTone("success");
+      setStatus("Category edit image uploaded to Cloudinary.");
+    } catch (error) {
+      setStatusTone("error");
+      setStatus(error instanceof Error ? error.message : "Failed to upload replacement category image.");
+    } finally {
+      setUploadingCategoryEditImage(false);
     }
   }
 
@@ -479,9 +555,9 @@ export default function AdminConsole() {
   async function onCreateCategory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!categoryDraft.name.trim()) {
+    if (!validateCategory(categoryDraft)) {
       setStatusTone("error");
-      setStatus("Category name is required.");
+      setStatus("Please fill category fields correctly. Name is required and position must be 1 or higher.");
       return;
     }
 
@@ -490,14 +566,7 @@ export default function AdminConsole() {
     const res = await fetch("/api/admin/categories", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: categoryDraft.name,
-        slug: categoryDraft.slug,
-        description: categoryDraft.description,
-        heroImage: categoryDraft.heroImage,
-        accentColor: categoryDraft.accentColor,
-        position: categoryDraft.position ? Number(categoryDraft.position) : undefined
-      })
+      body: JSON.stringify(categoryPayload(categoryDraft))
     });
 
     const data = await res.json();
@@ -514,6 +583,108 @@ export default function AdminConsole() {
     setStatus("Category added.");
     await loadAll();
     setCreatingCategory(false);
+  }
+
+  async function onSaveCategory(categoryId: string) {
+    if (!validateCategory(categoryEditDraft)) {
+      setStatusTone("error");
+      setStatus("Please fill category fields correctly. Name is required and position must be 1 or higher.");
+      return;
+    }
+
+    setSavingCategory(true);
+
+    const res = await fetch(`/api/admin/categories/${categoryId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(categoryPayload(categoryEditDraft))
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      setSavingCategory(false);
+      setStatusTone("error");
+      setStatus(data.error || "Could not save category.");
+      return;
+    }
+
+    setStatusTone("success");
+    setStatus("Category updated.");
+    setEditingCategoryId(null);
+    setCategoryEditDraft(emptyCategory);
+    await loadAll();
+    setSavingCategory(false);
+  }
+
+  function openCategoryDeleteModal(category: Category) {
+    setCategoryDeleteTarget(category);
+    setCategoryDeleteError("");
+  }
+
+  function closeCategoryDeleteModal() {
+    if (deletingCategory) {
+      return;
+    }
+
+    setCategoryDeleteTarget(null);
+    setCategoryDeleteError("");
+  }
+
+  function openAssignedCategoryProducts() {
+    if (!categoryDeleteTarget) {
+      return;
+    }
+
+    setTab("products");
+    setMode("category");
+    setSelectedCategoryId(categoryDeleteTarget.id);
+    setQuery("");
+    setEditingCategoryId(null);
+    setCategoryEditDraft(emptyCategory);
+    setCategoryDeleteTarget(null);
+    setCategoryDeleteError("");
+    setStatusTone("info");
+    setStatus(`Showing products assigned to ${categoryDeleteTarget.name}. Edit each product and choose a different category before deleting.`);
+  }
+
+  async function onDeleteCategory() {
+    if (!categoryDeleteTarget || categoryDeleteAssignedProducts.length > 0) {
+      return;
+    }
+
+    setDeletingCategory(true);
+    setCategoryDeleteError("");
+
+    try {
+      const res = await fetch(`/api/admin/categories/${categoryDeleteTarget.id}`, { method: "DELETE" });
+      const data = await res.json();
+
+      if (!res.ok) {
+        const message =
+          data.error ||
+          "Could not delete category. Make sure no products are assigned to this category, then try again.";
+        setStatusTone("error");
+        setStatus(message);
+        setCategoryDeleteError(message);
+        return;
+      }
+
+      setStatusTone("success");
+      setStatus("Category deleted.");
+      if (editingCategoryId === categoryDeleteTarget.id) {
+        setEditingCategoryId(null);
+        setCategoryEditDraft(emptyCategory);
+      }
+      if (selectedCategoryId === categoryDeleteTarget.id) {
+        setSelectedCategoryId("all");
+      }
+      setCategoryDeleteTarget(null);
+      setCategoryDeleteError("");
+      await loadAll();
+    } finally {
+      setDeletingCategory(false);
+    }
   }
 
   async function onUpdateTicket(event: FormEvent<HTMLFormElement>, ticket: Ticket) {
@@ -989,9 +1160,9 @@ export default function AdminConsole() {
       ) : null}
 
       {tab === "categories" ? (
-        <div className="grid gap-6 xl:grid-cols-[1fr_1.2fr]">
-          <form onSubmit={onCreateCategory} className="soft-card grid gap-4 rounded-3xl p-6 md:p-8">
-            <h3 className="text-2xl font-black">Add Category</h3>
+        <div className="space-y-6">
+          <form onSubmit={onCreateCategory} className="soft-card grid gap-4 rounded-3xl p-6 md:grid-cols-2 md:p-8">
+            <h3 className="text-2xl font-black md:col-span-2">Add Category</h3>
 
             <input
               className="input-plain"
@@ -1009,7 +1180,7 @@ export default function AdminConsole() {
 
             <textarea
               rows={3}
-              className="input-plain"
+              className="input-plain md:col-span-2"
               placeholder="Description"
               value={categoryDraft.description}
               onChange={(event) => setCategoryDraft((prev) => ({ ...prev, description: event.target.value }))}
@@ -1050,7 +1221,7 @@ export default function AdminConsole() {
               />
             </div>
 
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-3 md:col-span-2">
               <button className="btn-primary" disabled={creatingCategory}>
                 {creatingCategory ? "Adding..." : "Add Category"}
               </button>
@@ -1060,23 +1231,160 @@ export default function AdminConsole() {
             </div>
           </form>
 
-          <div className="soft-card rounded-3xl p-6 md:p-8">
-            <h3 className="text-2xl font-black">All Categories ({categories.length})</h3>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div className="soft-card space-y-4 rounded-3xl p-6 md:p-8">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h3 className="text-2xl font-black">Find & Edit Categories</h3>
+                <p className="mt-1 text-sm font-semibold text-on-surface-variant">
+                  {categories.length} categor{categories.length === 1 ? "y" : "ies"} found
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
               {categories.map((category) => (
-                <article key={category.id} className="overflow-hidden rounded-2xl border border-outline-variant/45 bg-surface-container-low">
-                  {category.heroImage ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={category.heroImage} alt={category.name} className="h-24 w-full object-cover" />
-                  ) : (
-                    <div className="h-24 w-full" style={{ backgroundColor: category.accentColor || "#f56a4a" }} />
-                  )}
-                  <div className="p-3">
-                    <p className="font-black">{category.name}</p>
-                    <p className="text-xs text-on-surface-variant">/{category.slug}</p>
+                <article key={category.id} className="rounded-2xl border border-outline-variant/45 bg-surface-container-low p-4">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div className="flex min-w-0 flex-1 gap-4">
+                      <div className="h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-surface-container">
+                        {category.heroImage ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={category.heroImage} alt={category.name} className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="h-full w-full" style={{ backgroundColor: category.accentColor || "#f56a4a" }} />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold uppercase tracking-[0.15em] text-primary">
+                          Position {category.position || "-"}
+                        </p>
+                        <h4 className="break-words text-2xl font-black">{category.name}</h4>
+                        <p className="break-words text-sm text-on-surface-variant">/{category.slug}</p>
+                        {category.description ? (
+                          <p className="mt-2 line-clamp-3 text-sm text-on-surface-variant">{category.description}</p>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        className="btn-secondary"
+                        type="button"
+                        onClick={() => {
+                          setEditingCategoryId(category.id);
+                          setCategoryEditDraft(fromCategory(category));
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="btn-secondary !border-red-300 !text-red-700"
+                        type="button"
+                        onClick={() => openCategoryDeleteModal(category)}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
+
+                  {editingCategoryId === category.id ? (
+                    <form
+                      className="mt-4 grid gap-3 rounded-2xl bg-white p-4 md:grid-cols-2"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void onSaveCategory(category.id);
+                      }}
+                    >
+                      <input
+                        className="input-plain"
+                        placeholder="Category name"
+                        value={categoryEditDraft.name}
+                        onChange={(event) => setCategoryEditDraft((prev) => ({ ...prev, name: event.target.value }))}
+                      />
+
+                      <input
+                        className="input-plain"
+                        placeholder="Slug"
+                        value={categoryEditDraft.slug}
+                        onChange={(event) => setCategoryEditDraft((prev) => ({ ...prev, slug: event.target.value }))}
+                      />
+
+                      <textarea
+                        rows={3}
+                        className="input-plain md:col-span-2"
+                        placeholder="Description"
+                        value={categoryEditDraft.description}
+                        onChange={(event) =>
+                          setCategoryEditDraft((prev) => ({ ...prev, description: event.target.value }))
+                        }
+                      />
+
+                      <input
+                        className="input-plain"
+                        placeholder="Hero image URL"
+                        value={categoryEditDraft.heroImage}
+                        onChange={(event) =>
+                          setCategoryEditDraft((prev) => ({ ...prev, heroImage: event.target.value }))
+                        }
+                      />
+
+                      <label className="flex flex-col gap-2 rounded-2xl border border-outline-variant/45 bg-surface-container-low p-3 text-xs font-semibold text-on-surface-variant">
+                        Upload replacement category image to Cloudinary
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="input-plain"
+                          onChange={(event) => void onCategoryEditImageUpload(event)}
+                          disabled={uploadingCategoryEditImage}
+                        />
+                      </label>
+
+                      <div className="grid gap-3 sm:grid-cols-2 md:col-span-2">
+                        <input
+                          type="color"
+                          className="input-plain h-12"
+                          value={categoryEditDraft.accentColor}
+                          onChange={(event) =>
+                            setCategoryEditDraft((prev) => ({ ...prev, accentColor: event.target.value }))
+                          }
+                        />
+                        <input
+                          type="number"
+                          min={1}
+                          className="input-plain"
+                          placeholder="Position"
+                          value={categoryEditDraft.position}
+                          onChange={(event) =>
+                            setCategoryEditDraft((prev) => ({ ...prev, position: event.target.value }))
+                          }
+                        />
+                      </div>
+
+                      <div className="flex flex-wrap gap-3 md:col-span-2">
+                        <button className="btn-primary" disabled={savingCategory}>
+                          {savingCategory ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={() => {
+                            setEditingCategoryId(null);
+                            setCategoryEditDraft(emptyCategory);
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  ) : null}
                 </article>
               ))}
+
+              {categories.length === 0 ? (
+                <p className="rounded-2xl bg-surface-container px-4 py-3 text-sm text-on-surface-variant">
+                  No categories found.
+                </p>
+              ) : null}
             </div>
           </div>
         </div>
@@ -1255,6 +1563,98 @@ export default function AdminConsole() {
               <p className="rounded-2xl bg-surface-container-low px-4 py-3 text-on-surface-variant">
                 Applies on home cards, category pages, product page, product search, and cart views.
               </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {categoryDeleteTarget ? (
+        <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/55 px-4 py-6">
+          <div
+            className="w-full max-w-2xl rounded-3xl bg-white p-5 shadow-2xl md:p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-category-title"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-red-600">Delete Category</p>
+                <h3 id="delete-category-title" className="mt-1 break-words text-2xl font-black text-on-surface">
+                  {categoryDeleteTarget.name}
+                </h3>
+                <p className="mt-1 break-words text-sm text-on-surface-variant">/{categoryDeleteTarget.slug}</p>
+              </div>
+              <button
+                type="button"
+                className="btn-secondary !px-3 !py-2"
+                onClick={closeCategoryDeleteModal}
+                disabled={deletingCategory}
+              >
+                Close
+              </button>
+            </div>
+
+            {categoryDeleteAssignedProducts.length > 0 ? (
+              <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <p className="font-bold text-amber-900">
+                  This category still has {categoryDeleteAssignedProducts.length} assigned product
+                  {categoryDeleteAssignedProducts.length === 1 ? "" : "s"}.
+                </p>
+                <p className="mt-1 text-sm text-amber-900/80">
+                  Move these products to another category before deleting this one.
+                </p>
+
+                <div className="mt-3 max-h-52 space-y-2 overflow-y-auto pr-1">
+                  {categoryDeleteAssignedProducts.slice(0, 8).map((product) => (
+                    <div
+                      key={product.id}
+                      className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-semibold text-on-surface"
+                    >
+                      {product.title}
+                      <span className="ml-2 text-xs font-normal text-on-surface-variant">/{product.slug}</span>
+                    </div>
+                  ))}
+                  {categoryDeleteAssignedProducts.length > 8 ? (
+                    <p className="px-1 text-xs font-semibold text-amber-900/80">
+                      +{categoryDeleteAssignedProducts.length - 8} more product
+                      {categoryDeleteAssignedProducts.length - 8 === 1 ? "" : "s"}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4">
+                <p className="font-bold text-red-800">No products are assigned to this category.</p>
+                <p className="mt-1 text-sm text-red-800/80">
+                  Deleting it will remove the category from the storefront and admin category list.
+                </p>
+              </div>
+            )}
+
+            {categoryDeleteError ? (
+              <p className="mt-4 rounded-2xl bg-red-100 px-4 py-3 text-sm font-semibold text-red-700">
+                {categoryDeleteError}
+              </p>
+            ) : null}
+
+            <div className="mt-5 flex flex-wrap justify-end gap-3">
+              {categoryDeleteAssignedProducts.length > 0 ? (
+                <button type="button" className="btn-primary" onClick={openAssignedCategoryProducts}>
+                  Open Assigned Products
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn-primary !bg-red-600 !text-white"
+                  onClick={() => void onDeleteCategory()}
+                  disabled={deletingCategory}
+                >
+                  {deletingCategory ? "Deleting..." : "Delete Category"}
+                </button>
+              )}
+              <button type="button" className="btn-secondary" onClick={closeCategoryDeleteModal} disabled={deletingCategory}>
+                Cancel
+              </button>
             </div>
           </div>
         </div>
