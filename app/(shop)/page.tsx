@@ -17,7 +17,7 @@ function mapProduct(product: any) {
     shortDescription: product.shortDescription,
     description: product.description,
     price: product.price,
-    images: product.images || [],
+    images: Array.isArray(product.images) ? product.images.filter(Boolean) : [],
     inStock: product.inStock,
     stockCount: product.stockCount,
     featured: product.featured,
@@ -117,7 +117,13 @@ export default async function HomePage() {
                 </div>
 
                 <div className="relative min-h-[280px] bg-surface-container-low">
-                  <Image src={spotlight.images[0]} alt={spotlight.title} fill className="object-cover" sizes="50vw" />
+                  {spotlight.images[0] ? (
+                    <Image src={spotlight.images[0]} alt={spotlight.title} fill className="object-cover" sizes="50vw" />
+                  ) : (
+                    <div className="flex h-full min-h-[280px] items-center justify-center text-on-surface-variant">
+                      No image
+                    </div>
+                  )}
                 </div>
               </div>
             </article>
@@ -130,13 +136,19 @@ export default async function HomePage() {
                   className="group block overflow-hidden rounded-3xl soft-card transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl"
                 >
                   <div className="relative h-44 bg-surface-container-low">
-                    <Image
-                      src={item.images[0]}
-                      alt={item.title}
-                      fill
-                      className="object-cover transition-transform duration-700 group-hover:scale-105"
-                      sizes="33vw"
-                    />
+                    {item.images[0] ? (
+                      <Image
+                        src={item.images[0]}
+                        alt={item.title}
+                        fill
+                        className="object-cover transition-transform duration-700 group-hover:scale-105"
+                        sizes="33vw"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-sm text-on-surface-variant">
+                        No image
+                      </div>
+                    )}
                   </div>
                   <div className="p-4">
                     <h4 className="text-xl font-black">{item.title}</h4>
