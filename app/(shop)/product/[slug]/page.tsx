@@ -1,4 +1,4 @@
-﻿import Image from "@/components/ui/app-image";
+import Image from "@/components/ui/app-image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import AddToCartButton from "@/components/add-to-cart-button";
@@ -44,7 +44,7 @@ function mapProduct(product: any): MappedProduct {
     shortDescription: product.shortDescription,
     description: product.description,
     price: hasValidPrice(product.price) ? product.price : null,
-    images: (product.images || []) as string[],
+    images: Array.isArray(product.images) ? product.images.filter(Boolean).map(String) : [],
     tags: (product.tags || []) as string[],
     inStock: product.inStock,
     stockCount: product.stockCount,
